@@ -1,0 +1,37 @@
+#!/bin/bash
+
+if [[ $# -eq 0 || $# -lt 2 ]]; then
+  echo "Usage : $0 <pssh host file> <linux user>"
+  exit 1
+fi
+
+readonly PSSH_HOST_FILE=${1}
+readonly USERNAME=${2}
+readonly ORACLE_HOME_ZIP=LINUX.X64_193000_db_home.zip
+readonly ORACLE_HOME=/u01/app/oracle/product/19.3/dbhome_1
+readonly ORACLE_USER=oracle
+readonly PSSH=path_to_pssh
+readonly PSCP=path_to_pscp
+readonly KEY=path_to_your_key_pem_file
+
+if [[ "${USERNAME}" != "root" ]]; then
+  SUDO="sudo"
+else
+  SUDO=""
+fi
+
+${PSCP} -l ${ORACLE_USER} -x "-i ${KEY}" -h ${PSSH_HOST_FILE} ~fedora/sagy/${ORACLE_HOME_ZIP} /tmp/
+${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "${SUDO} su - oracle -c \"cd $ORACLE_HOME;unzip /tmp/${ORACLE_HOME_ZIP}\""
+${PSCP} -l ${ORACLE_USER} -x "-i ${KEY}" -h ${PSSH_HOST_FILE} oracle_install /home/${ORACLE_USER}/
+${PSCP} -l ${ORACLE_USER} -x "-i ${KEY}" -h ${PSSH_HOST_FILE} myoracleinstall.rsp /tmp/
+${PSSH} -l ${ORACLE_USER} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "wget https://github.com/therealkevinc/SLOB_2.5.4/raw/main/2021.05.12.slob_2.5.4.0.tar.gz"
+${PSSH} -l ${ORACLE_USER} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "tar xzvf 2021.05.12.slob_2.5.4.0.tar.gz"
+
+${PSCP} -l ${ORACLE_USER} -x "-i ${KEY}" -h ${PSSH_HOST_FILE} my_slob_scripts.tgz /tmp/
+${PSSH} -l ${ORACLE_USER} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "tar zxvf /tmp/my_slob_scripts.tgz -C ~oracle/"
+# Fixing BLOCK_SZ bug
+${PSSH} -l ${ORACLE_USER} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "cd SLOB;sed -i 's/BLOCK_SZ:=16384/BLOCK_SZ:=8192/' runit.sh"
+# Changing redo to support 4k blocksize
+${PSSH} -l ${ORACLE_USER} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "cd SLOB;sed -i 's/#_disk_sector_size_override/_disk_sector_size_override/' misc/create_database_kit/create.ora"
+${PSSH} -l ${ORACLE_USER} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "sed -i 's/#CV_ASSUME_DISTID=OEL5/CV_ASSUME_DISTID=OEL8/' /u01/app/oracle/product/19.3/dbhome_1/cv/admin/cvu_config"
+${PSSH} -l ${ORACLE_USER} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "cd SLOB/wait_kit; make"

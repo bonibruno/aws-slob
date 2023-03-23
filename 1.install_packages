@@ -1,0 +1,26 @@
+#!/bin/bash
+
+if [[ $# -eq 0 || $# -lt 2 ]]; then
+  echo "Usage : $0 <pssh host file> <linux user>"
+  exit 1
+fi
+
+readonly PSSH_HOST_FILE=${1}
+readonly USERNAME=${2}
+readonly PSSH=path_to_pssh
+readonly KEY=path_to_your_key_pem_file
+
+if [[ "${USERNAME}" != "root" ]]; then
+  SUDO="sudo"
+else
+  SUDO=""
+fi
+
+${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "${SUDO} dnf distro-sync -y"
+${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "${SUDO} dnf -y install wget net-tools bc binutils elfutils-libelf elfutils-libelf-devel fontconfig-devel glibc glibc-devel ksh libaio libaio-devel libgcc libnsl librdmacm-devel libstdc++ libstdc++-devel libX11 libXau libxcb libXi libXrender libXrender-devel libXtst make net-tools nfs-utils python3 python3-configshell python3-rtslib python3-six smartmontools sysstat targetcli unzip tigervnc-server tigervnc-server-module xterm nvme-cli wget vim numactl linux-firmware gcc"
+
+${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "${SUDO} dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm"
+${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "${SUDO} rpm --import https://www.elrepo.org/RPM-GPG-KEY-elrepo.org"
+${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "${SUDO} dnf -y install https://www.elrepo.org/elrepo-release-8.el8.elrepo.noarch.rpm"
+${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "${SUDO} dnf install -y htop iftop screen"
+${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "${SUDO} dnf --disablerepo='*' --enablerepo=elrepo-kernel install -y kernel-lt.x86_64"

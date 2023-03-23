@@ -1,0 +1,22 @@
+#!/bin/bash
+
+if [[ $# -eq 0 || $# -lt 2 ]]; then
+  echo "Usage : $0 <pssh host file> <linux user>"
+  exit 1
+fi
+
+readonly PSSH_HOST_FILE=${1}
+readonly USERNAME=${2}
+readonly PSSH=path_to_pssh
+readonly KEY=path_to_your_key_pem_file
+
+if [[ "${USERNAME}" != "root" ]]; then
+  SUDO="sudo"
+else
+  SUDO=""
+fi
+
+${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "${SUDO} su - oracle -c \"bash ./oracle_install\""
+sleep 10
+${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "${SUDO} /u01/app/oraInventory/orainstRoot.sh"
+${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "${SUDO} /u01/app/oracle/product/19.3/dbhome_1/root.sh"

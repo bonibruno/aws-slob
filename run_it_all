@@ -1,0 +1,54 @@
+#!/bin/bash
+
+readonly PSSH_HOST_FILE=/home/fedora/sagy/for_tech_paper/oracle_clients
+readonly EC2_USER=ec2-user
+readonly LB_HOST_FILE=/home/fedora/sagy/los
+readonly NUMBER_OF_SCHEMAS=24
+readonly SIZE_OF_SCHEMA=35
+readonly SLEEP=10
+
+echo "Starting ${0} $(date)"
+echo "Running 0.setup_ssh_access"
+bash 0.setup_ssh_access ${PSSH_HOST_FILE} ${EC2_USER}
+sleep ${SLEEP}
+
+echo "Running 1.install_packages"
+bash 1.install_packages ${PSSH_HOST_FILE} ${EC2_USER}
+sleep ${SLEEP}
+
+echo "Running 2.os_tweaks"
+bash 2.os_tweaks ${PSSH_HOST_FILE} ${EC2_USER}
+sleep ${SLEEP}
+
+echo "Running 3.oracle_user_setup"
+bash 3.oracle_user_setup ${PSSH_HOST_FILE} ${EC2_USER}
+sleep ${SLEEP}
+
+echo "Running 4.connect_to_lightbits_cluster"
+bash 4.connect_to_lightbits_cluster ${PSSH_HOST_FILE} ${EC2_USER} ${LB_HOST_FILE}
+sleep ${SLEEP}
+
+echo "Running 5.reboot"
+bash 5.reboot ${PSSH_HOST_FILE} ${EC2_USER}
+sleep ${SLEEP}
+
+echo "Running 6.copy_oracle_home"
+bash 6.copy_oracle_home ${PSSH_HOST_FILE} ${EC2_USER}
+sleep ${SLEEP}
+
+echo "Running 7.create_volumes"
+bash 7.create_volumes ${PSSH_HOST_FILE} ${EC2_USER} LB ${NUMBER_OF_SCHEMAS} 3 ${SIZE_OF_SCHEMA}
+sleep ${SLEEP}
+
+echo "Running 8.install_oracle"
+bash 8.install_oracle ${PSSH_HOST_FILE} ${EC2_USER}
+sleep ${SLEEP}
+
+echo "Running 9.create_slob_database"
+bash 9.create_slob_database ${PSSH_HOST_FILE} ${EC2_USER} ${NUMBER_OF_SCHEMAS} ${SIZE_OF_SCHEMA}
+sleep ${SLEEP}
+
+echo "Running 10.create_slob_schemas"
+bash 10.create_slob_schemas ${PSSH_HOST_FILE} ${NUMBER_OF_SCHEMAS}
+
+echo "End of ${0} $(date)"

@@ -1,0 +1,59 @@
+#!/bin/bash
+
+if [[ $# -eq 0 || $# -lt 3 ]]; then
+ echo "Usage : $0 <pssh host file> <linux user> <Lightbits cluster pssh host file>"
+ exit 1
+fi
+
+readonly PSSH_HOST_FILE=${1}
+readonly USERNAME=${2}
+readonly LOS_FILE=${3}
+readonly PSSH=path_to_pssh
+readonly KEY=path_to_your_key_pem_file
+readonly PSCP=path_to_pscp
+readonly CLUSTER_NQN=$(lbcli get cluster -o json | jq -r '.subsystemNQN')
+readonly QUEUES=16
+readonly BASE_IP=$(head -1 ${LOS_FILE} | sed 's/-/./g' | awk -F. '{print $2"."$3"."$4}')
+
+if [[ "${USERNAME}" != "root" ]]; then
+  SUDO="sudo"
+else
+  SUDO=""
+fi
+
+ip_list=$(cat ${LOS_FILE} | awk -F- '{print $5}' | awk -F. '{print $1}' | paste -d ' ' - - -)
+
+${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "${SUDO} tee /usr/local/bin/nvme_connect_lb >/dev/null <<EOF
+#!/bin/bash
+
+for i in ${ip_list}
+do
+  nvme connect -t tcp -s 4420 -a ${BASE_IP}.\\\${i} -n ${CLUSTER_NQN} -i ${QUEUES} -l -1
+done
+EOF"
+
+${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "${SUDO} chmod u+x /usr/local/bin/nvme_connect_lb"
+
+${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "${SUDO} tee /usr/lib/systemd/system/nvmeconnect.service <<EOF
+[Unit]
+Description=Connect via nvme connect
+ConditionPathExists=/usr/local/bin/nvme_connect_lb
+After=network-online.target
+Before=remote-fs-pre.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/nvme_connect_lb
+
+[Install]
+WantedBy=default.target
+EOF"
+
+${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "${SUDO} systemctl start nvmeconnect.service"
+${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "${SUDO} systemctl enable nvmeconnect.service"
+
+${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "${SUDO} mkdir /etc/lbcli"
+${PSCP} -l ${USERNAME} -x "-i ${KEY}" -h ${PSSH_HOST_FILE} /usr/bin/lbcli /tmp/
+${PSCP} -l ${USERNAME} -x "-i ${KEY}" -h ${PSSH_HOST_FILE} /etc/lbcli/lbcli.yaml /tmp/
+${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "${SUDO} cp /tmp/lbcli.yaml /etc/lbcli"
+${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "${SUDO} cp /tmp/lbcli /usr/bin/"

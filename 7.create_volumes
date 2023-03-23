@@ -1,0 +1,60 @@
+#!/bin/bash
+
+if [[ $# -eq 0 || $# -lt 6 ]]; then
+  echo "Usage : $0 <pssh host file> <linux user> <LB for lightbits, io2 for EBS> <number of LB volumes to create> <LB replica number 1,2 or 3> <volume size in GB 35 or 75>"
+  exit 1
+fi
+
+readonly PSSH_HOST_FILE=${1}
+readonly USERNAME=${2}
+readonly STORAGE_TYPE=${3}
+readonly NUMBER_OF_VOLUMES=${4}
+readonly NUMBER_OF_REPLICAS=${5}
+readonly VOLUME_SIZE=${6}
+readonly ORACLE_HOME_ZIP=LINUX.X64_193000_db_home.zip
+readonly ORACLE_HOME=/u01/app/oracle/product/19.3/dbhome_1
+readonly ORACLE_USER=oracle
+readonly PSSH=path_to_pssh
+readonly KEY=path_to_your_key_pem_file
+readonly PSCP=path_to_pscp
+readonly SSO_PROFILE=ps-global-storage-sandbox-admin-442210967146
+
+if [[ ${VOLUME_SIZE} != 35 && ${VOLUME_SIZE} != 75 ]]; then
+  echo "volume size size must match either 35 or 75"
+  exit 1
+fi
+
+if [[ "${USERNAME}" != "root" ]]; then
+  SUDO="sudo"
+else
+  SUDO=""
+fi
+
+case "${STORAGE_TYPE}" in
+  LB|lb)
+    echo "Using Lightbits storage..."
+    ${PSCP} -l ${ORACLE_USER} -x "-i ${KEY}" -h ${PSSH_HOST_FILE} create_oracle_lightbits_volumes /tmp/
+    ${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "${SUDO} bash /tmp/create_oracle_lightbits_volumes ${NUMBER_OF_VOLUMES} ${NUMBER_OF_REPLICAS} ${VOLUME_SIZE} " 
+    ;;
+  IO2|io2|ebs)
+    echo "Using EBS..."
+    ${PSCP} -l ${ORACLE_USER} -x "-i ${KEY}" -h ${PSSH_HOST_FILE} create_oracle_fs_ebs /tmp/
+    echo "Creating volumes..."
+    ./create_oracle_ebs_volumes ${NUMBER_OF_VOLUMES} 4000
+    echo "Sleeping for 60 sec..."
+    sleep 60
+    echo "Attaching volumes..."
+    for client_name in $(cat ${PSSH_HOST_FILE})
+    do
+      for instance_id in $(aws ec2 describe-instances --profile ${SSO_PROFILE} --filters "Name=private-dns-name,Values=${client_name}" --query 'Reservations[].Instances[].InstanceId' --output=text)
+      do
+        ./attach_oracle_ebs_volumes ${instance_id} 4000
+      done
+    done
+    ${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "${SUDO} bash /tmp/create_oracle_fs_ebs"
+    ;;
+  *)
+    echo "not a valid storage option"
+    exit 1
+    ;;
+esac

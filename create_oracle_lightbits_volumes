@@ -1,0 +1,59 @@
+#!/bin/bash
+
+if [[ $# -eq 0 || $# -lt 3 ]]; then
+  echo "Usage : $0 <number of volumes to create> <replica count> <block volume size in GB, 35 or 75>"
+  exit 1
+fi
+
+readonly NUMBER_OF_VOLUMES=${1}
+readonly REPLICA_COUNT=${2}
+readonly VOLUME_SIZE=${3}
+readonly COMPRESSION=false
+readonly VOLUME_NAME_PREFIX=slob-vol
+readonly HOST_NAME=$(hostname)
+readonly ORACLE_SYSTEM_VOL_SIZE=150
+readonly LOCAL_LB_NVME_CONTROLLER=nvme1n
+((volume_per_client=NUMBER_OF_VOLUMES+1))
+
+if [[ ${VOLUME_SIZE} != 35 && ${VOLUME_SIZE} != 75 ]]; then
+  echo "datafile size must match either 35 or 75"
+  exit 1
+fi
+
+for ((i=1;i<${volume_per_client};i++))
+do
+  lbcli create volume --name=${HOST_NAME}-${VOLUME_NAME_PREFIX}${i} --project-name=default --acl=$(cat /etc/nvme/hostnqn) --size=${VOLUME_SIZE}gib --compression=${COMPRESSION} --replica-count=${REPLICA_COUNT}
+  mkdir /data${i}
+done
+
+sleep 20
+
+for x in $(sudo nvme list| grep 'Lightbits LightOS' | awk '{print $1}')
+do
+  sudo mkfs.xfs ${x}
+done
+
+let y=1
+for lb_device in $(sudo nvme list| grep 'Lightbits LightOS' | awk '{print $1}' | sed 's/'"${LOCAL_LB_NVME_CONTROLLER}"'/Z/g' | sort -t Z -n -k 2 | sed 's/Z/'"${LOCAL_LB_NVME_CONTROLLER}"'/g')
+do
+  device_uuid=$(sudo blkid|grep -w ${lb_device} | awk '{print $2}' | tr -d '"')
+  echo "${device_uuid} /data${y} xfs defaults,_netdev 1 0"
+  ((y++))
+done | sudo tee -a /etc/fstab
+sudo mount -a
+sudo chown oracle.oinstall /data*
+sudo chmod 775 /data*
+
+# one more for system and undo and redo
+  lbcli create volume --name=${HOST_NAME}-slobdb --project-name=default --acl=$(cat /etc/nvme/hostnqn) --size=${ORACLE_SYSTEM_VOL_SIZE}gib --compression=${COMPRESSION} --replica-count=${REPLICA_COUNT}
+
+sleep 10
+
+x=$(sudo lsblk|grep nvme|grep ${ORACLE_SYSTEM_VOL_SIZE}G|awk '{print $1}')
+sudo mkfs.xfs -L SLOBDB /dev/${x}
+sudo mkdir /slobdb
+y=$(sudo blkid|grep ${x}|awk '{print $3}'|tr -d '"')
+echo "${y} /slobdb xfs defaults,_netdev 1 0" | sudo tee -a /etc/fstab
+sudo mount -a
+sudo chown oracle.oinstall /slobdb
+sudo chmod 775 /slobdb

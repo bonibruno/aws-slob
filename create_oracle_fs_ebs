@@ -1,0 +1,38 @@
+#!/bin/bash
+
+readonly VOLUME_SIZE=80.53
+readonly ORACLE_SYSTEM_VOL_SIZE=128.85
+
+let number_of_volumes=0
+for x in $(nvme list| grep ${VOLUME_SIZE}  | awk '{print $1}')
+do
+  mkfs.xfs ${x}
+  ((number_of_volumes++))
+done
+
+for ((i=1;i<=number_of_volumes;i++))
+do
+  mkdir /data${i}
+done
+
+let y=1
+for ebs_device in $(nvme list| grep ${VOLUME_SIZE} | awk '{print $1}' | sed 's/nvme/Z/g' | sort -t Z -n -k 2 | sed 's/Z/nvme/g')
+do
+  device_uuid=$(blkid|grep -w ${ebs_device} | awk '{print $2}' | tr -d '"')
+  echo "${device_uuid} /data${y} xfs defaults 1 2"
+  ((y++))
+done >> /etc/fstab
+mount -a
+chown oracle.oinstall /data*
+chmod 775 /data*
+
+# one more for system and undo and redo
+
+x=$(nvme list|grep ${ORACLE_SYSTEM_VOL_SIZE}|awk '{print $1}')
+mkfs.xfs -L SLOBDB ${x}
+mkdir /slobdb
+y=$(blkid|grep ${x}|awk '{print $3}'|tr -d '"')
+echo "${y} /slobdb xfs defaults 1 2" >> /etc/fstab
+mount -a
+chown oracle.oinstall /slobdb
+chmod 775 /slobdb

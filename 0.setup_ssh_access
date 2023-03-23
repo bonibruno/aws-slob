@@ -1,0 +1,31 @@
+#!/bin/bash
+
+if [[ $# -eq 0 || $# -lt 2 ]]; then
+ echo "Usage : $0 <pssh host file> <username to ssh>"
+ exit 1
+fi
+
+readonly PSSH_HOST_FILE=${1}
+readonly USERNAME=${2}
+readonly SSH_KEY=path_to_your_key_pem_file
+
+function delete_old_known_hosts_entries()
+{
+  for host_name in $(cat ${PSSH_HOST_FILE})
+  do
+    echo "deleting entry for ${host_name}..."
+    ssh-keygen -f ~/.ssh/known_hosts -R "${host_name}"
+  done
+}
+
+function ssh_to_node()
+{
+  for host_name in $(cat ${PSSH_HOST_FILE})
+  do
+    echo "checking ssh to ${host_name}..."
+    ssh -o StrictHostKeyChecking=no -i ${SSH_KEY} ${USERNAME}@${host_name} "w"
+  done
+}
+
+delete_old_known_hosts_entries
+ssh_to_node

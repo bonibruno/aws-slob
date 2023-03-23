@@ -1,0 +1,23 @@
+#!/bin/bash
+
+if [[ $# -eq 0 || $# -lt 2 ]]; then
+  echo "Usage : $0 <instance id to attach all volumes to> <IOPS used for the devices, just for sake of tagging>"
+  exit 1
+fi
+
+readonly INSTANCE_ID=${1}
+readonly IOPS=${2}
+readonly VOLUME_TAG=oracle-io2-${IOPS}
+readonly SSO_PROFILE=lb-perf
+
+alphabet=( {a..z} )
+let volume_number=0
+
+for volume_id in $(aws ec2 describe-volumes --profile ${SSO_PROFILE} --query "Volumes[].VolumeId" --filters "Name=tag:Name,Values=${VOLUME_TAG}*" --output=text)
+do
+  ((volume_number++))
+  echo "attaching ${volume_id} to instance id ${INSTANCE_ID} using device /dev/xvd${alphabet[${volume_number}]}"
+  echo aws ec2 attach-volume --volume-id ${volume_id} --instance-id ${INSTANCE_ID} --device /dev/xvd${alphabet[${volume_number}]} --profile ${SSO_PROFILE}
+  aws ec2 attach-volume --volume-id ${volume_id} --instance-id ${INSTANCE_ID} --device /dev/xvd${alphabet[${volume_number}]} --profile ${SSO_PROFILE}
+  sleep 5
+done

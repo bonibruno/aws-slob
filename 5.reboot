@@ -1,0 +1,26 @@
+#!/bin/bash
+
+if [[ $# -eq 0 || $# -lt 2 ]]; then
+  echo "Usage : $0 <pssh host file> <linux user>"
+  exit 1
+fi
+
+readonly PSSH_HOST_FILE=${1}
+readonly USERNAME=${2}
+readonly PSSH=path_to_pssh
+readonly KEY=path_to_your_key_pem_file
+
+echo "Rebooting all instances in ${PSSH_HOST_FILE}..."
+${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "sudo reboot"
+
+pssh_exit_code=1
+while [ ${pssh_exit_code} -ne 0 ]
+do
+  echo "Waiting for all instances to complete reboot..."
+  sleep 5
+  ${PSSH} -l ${USERNAME} -i -t2 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "w"
+  pssh_exit_code=$?
+done
+
+echo "All instances accept ssh, sleeping for another 30 seconds just to be on the safe side..."
+sleep 30

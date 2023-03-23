@@ -1,0 +1,39 @@
+#!/bin/bash
+
+readonly INSTANCE_TYPE=r6in.24xlarge
+# RHEL8.x (Amazon) - ami-092b43193629811af
+# Alma8.x (Amazon) - ami-09e57b4a97b8f8b10
+readonly KEY_NAME=theOneWhoWaits-perf
+readonly IMAGE_ID=ami-092b43193629811af
+readonly SUBNET_ID=subnet-0877c630b874af6b2
+#readonly SECURITY_GROUP=sg-0a7a44483f4222b93
+readonly SECURITY_GROUP=sg-0c4e2718d729d40a5
+readonly ROOT_VOLUME_TYPE=gp3
+readonly ROOT_VOLUME_SIZE=85
+readonly INSTANCE_NAME=myoracle
+readonly NUMBER_OF_INSTANCES=1
+readonly HOST_FILE=oracle_clients
+
+[[ -e ${HOST_FILE} ]] && rm -f ${HOST_FILE}
+
+for ((x=1;x<=NUMBER_OF_INSTANCES;x++))
+do
+  cli_output=$(aws --profile lb-perf ec2 run-instances \
+    --no-cli-pager \
+    --count 1 \
+    --instance-type ${INSTANCE_TYPE} \
+    --key-name ${KEY_NAME} \
+    --image-id ${IMAGE_ID} \
+    --subnet-id ${SUBNET_ID} \
+    --security-group-ids ${SECURITY_GROUP} \
+    --associate-public-ip-address \
+    --output json \
+    --block-device-mappings 'DeviceName=/dev/sda1,Ebs={VolumeSize='${ROOT_VOLUME_SIZE}',VolumeType='${ROOT_VOLUME_TYPE}',DeleteOnTermination=true}' \
+    --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value='${INSTANCE_NAME}${x}'}]' | jq -rc '.Instances[] | "\(.PrivateDnsName),\(.State.Name)"')
+  aws_instance_name=$(echo ${cli_output} | awk -F, '{print $1}')
+  aws_instance_status=$(echo ${cli_output} | awk -F, '{print $2}')
+if [[ "${aws_instance_status}" == "pending" ]]; then
+  echo "${aws_instance_name} is pending, adding it to pssh host file ${HOST_FILE}..."
+  echo ${aws_instance_name} >> ${HOST_FILE}
+fi
+done

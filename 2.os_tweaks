@@ -1,0 +1,26 @@
+#!/bin/bash
+
+if [[ $# -eq 0 || $# -lt 2 ]]; then
+  echo "Usage : $0 <pssh host file> <linux user>"
+  exit 1
+fi
+
+readonly PSSH_HOST_FILE=${1}
+readonly USERNAME=${2}
+readonly PSSH=path_to_pssh
+readonly KEY=path_to_your_key_pem_file
+
+if [[ "${USERNAME}" != "root" ]]; then
+  SUDO="sudo"
+else
+  SUDO=""
+fi
+
+${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "nvme gen-hostnqn | ${SUDO} tee /etc/nvme/hostnqn"
+${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "${SUDO} sed -i 's/GRUB_CMDLINE_LINUX=\"/GRUB_CMDLINE_LINUX=\"nvme_core.multipath=Y /' /etc/default/grub"
+${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "${SUDO} grub2-mkconfig -o /boot/grub2/grub.cfg"
+${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "echo nvme_tcp | ${SUDO} tee /etc/modules-load.d/nvme_tcp.conf"
+${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "echo \"echo never > /sys/kernel/mm/transparent_hugepage/enabled\" | ${SUDO} tee -a /etc/rc.local"
+${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "${SUDO} chmod +x /etc/rc.local"
+${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "${SUDO} sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config"
+${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "${SUDO} systemctl stop firewalld;${SUDO} systemctl disable firewalld"

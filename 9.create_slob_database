@@ -1,0 +1,61 @@
+#!/bin/bash
+
+if [[ $# -eq 0 || $# -lt 4 ]]; then
+  echo "Usage : $0 <pssh host file> <linux user> <number of schemas to built 16 or 24> <datafile size (in GB) 35 or 75>"
+  exit 1
+fi
+
+readonly PSSH_HOST_FILE=${1}
+readonly USERNAME=${2}
+readonly SCHEMA=${3}
+readonly DBFSIZE=${4}
+readonly ORACLE_HOME=/u01/app/oracle/product/19.3/dbhome_1
+readonly ORACLE_USER=oracle
+readonly PSSH=path_to_pssh
+readonly KEY=path_to_your_key_pem_file
+
+if [[ ${SCHEMA} != 16 && ${SCHEMA} != 24 ]]; then
+  echo "number of schemas must match either 16 or 24"
+  exit 1
+fi
+
+if [[ ${DBFSIZE} != 35 && ${DBFSIZE} != 75 ]]; then
+  echo "datafile size must match either 35 or 75"
+  exit 1
+fi
+
+if [[ "${USERNAME}" != "root" ]]; then
+  SUDO="sudo"
+else
+  SUDO=""
+fi
+
+${PSSH} -l ${ORACLE_USER} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "cd SLOB/misc/create_database_kit; sqlplus / as sysdba <<EOFSQL
+@my_cr_db.sql
+EOFSQL
+"
+
+${PSSH} -l ${ORACLE_USER} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "cd SLOB; sqlplus / as sysdba <<EOFSQL
+shutdown immediate
+EOFSQL
+"
+
+${PSSH} -l ${ORACLE_USER} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "cd SLOB; cp myslob.ora ${ORACLE_HOME}/dbs/initSLOB.ora"
+
+${PSSH} -l ${ORACLE_USER} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "cd SLOB; sqlplus / as sysdba <<EOFSQL
+startup
+EOFSQL
+"
+
+${PSSH} -l ${ORACLE_USER} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "sqlplus / as sysdba <<EOFSQL
+alter user system identified by manager;
+EOFSQL
+"
+
+echo "starting to create the SLOB IOPS tablespace"
+${PSSH} -l ${ORACLE_USER} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "cd SLOB/misc/create_database_kit; sqlplus / as sysdba <<EOFSQL
+@my_iops_tbs_${SCHEMA}dbf_${DBFSIZE}GB.sql
+EOFSQL
+"
+
+${PSSH} -l ${ORACLE_USER} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "cd SLOB; cp myslob.conf_${DBFSIZE}GB slob.conf"

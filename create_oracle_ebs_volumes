@@ -1,0 +1,25 @@
+#!/bin/bash
+
+if [[ $# -eq 0 || $# -lt 2 ]]; then
+  echo "Usage : $0 <number of volumes to create> <IOPS allowed per volume, for example 4000>"
+  exit 1
+fi
+
+readonly NUMBER_OF_VOLUMES=${1}
+readonly IOPS=${2}
+readonly REGION=us-east-2
+readonly A_ZONE=us-east-2b
+readonly VOLUME_SIZE=75
+readonly VOLUME_TYPE=io2
+readonly SSO_PROFILE=lb-perf
+readonly ORACLE_HOME_VOL_SIZE=120
+readonly ORACLE_HOME_VOL_TYPE=gp3
+
+for ((j=1; j<=${NUMBER_OF_VOLUMES}; j++))
+do
+  aws ec2 create-volume --size ${VOLUME_SIZE} --region ${REGION} --availability-zone ${A_ZONE} --volume-type ${VOLUME_TYPE} --iops ${IOPS} --tag-specifications "ResourceType=volume,Tags=[{Key=Name,Value=oracle-io2-${IOPS}-${j}}]" --profile ${SSO_PROFILE}
+  sleep 5
+done
+
+# one more for oracle home
+aws ec2 create-volume --size ${ORACLE_HOME_VOL_SIZE} --region ${REGION} --availability-zone ${A_ZONE} --volume-type ${ORACLE_HOME_VOL_TYPE} --tag-specifications "ResourceType=volume,Tags=[{Key=Name,Value=oracle-io2-${IOPS}-home}]" --profile ${SSO_PROFILE}

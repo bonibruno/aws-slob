@@ -1,0 +1,31 @@
+#!/bin/bash
+
+if [[ $# -eq 0 || $# -lt 2 ]]; then
+  echo "Usage : $0 <pssh host file> <number of slob schemas>"
+  exit 1
+fi
+
+readonly PSSH_HOST_FILE=${1}
+readonly SLOB_SCHEMAS=${2}
+readonly ORACLE_USER=oracle
+readonly PSSH=path_to_pssh
+readonly KEY=path_to_your_key_pem_file
+
+if [[ "${USERNAME}" != "root" ]]; then
+  SUDO="sudo"
+else
+  SUDO=""
+fi
+
+${PSSH} -l ${ORACLE_USER} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "cd SLOB;bash ./setup.sh IOPS ${SLOB_SCHEMAS}"
+
+sleep 10
+${PSSH} -l ${ORACLE_USER} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "cd SLOB; sqlplus / as sysdba <<EOFSQL
+shutdown immediate
+EOFSQL
+"
+
+${PSSH} -l ${ORACLE_USER} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "cd SLOB; sqlplus / as sysdba <<EOFSQL
+startup
+EOFSQL
+"
