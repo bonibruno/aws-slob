@@ -4,7 +4,9 @@ if [[ $# -eq 0 || $# -lt 2 ]]; then
   echo "Usage : $0 <pssh host file> <linux user>"
   exit 1
 fi
-
+#
+# Get the Oracle Linux Zip file directly from oracle.com
+#
 readonly PSSH_HOST_FILE=${1}
 readonly USERNAME=${2}
 readonly ORACLE_HOME_ZIP=LINUX.X64_193000_db_home.zip
