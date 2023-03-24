@@ -20,7 +20,7 @@ else
   SUDO=""
 fi
 
-${PSCP} -l ${ORACLE_USER} -x "-i ${KEY}" -h ${PSSH_HOST_FILE} ~fedora/sagy/${ORACLE_HOME_ZIP} /tmp/
+${PSCP} -l ${ORACLE_USER} -x "-i ${KEY}" -h ${PSSH_HOST_FILE} ~/${ORACLE_HOME_ZIP} /tmp/
 ${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "${SUDO} su - oracle -c \"cd $ORACLE_HOME;unzip /tmp/${ORACLE_HOME_ZIP}\""
 ${PSCP} -l ${ORACLE_USER} -x "-i ${KEY}" -h ${PSSH_HOST_FILE} oracle_install /home/${ORACLE_USER}/
 ${PSCP} -l ${ORACLE_USER} -x "-i ${KEY}" -h ${PSSH_HOST_FILE} myoracleinstall.rsp /tmp/
