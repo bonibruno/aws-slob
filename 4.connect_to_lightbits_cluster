@@ -4,7 +4,9 @@ if [[ $# -eq 0 || $# -lt 3 ]]; then
  echo "Usage : $0 <pssh host file> <linux user> <Lightbits cluster pssh host file>"
  exit 1
 fi
-
+#
+# When you install pssh, you get pscp.pssh which should be in /bin.
+#
 readonly PSSH_HOST_FILE=${1}
 readonly USERNAME=${2}
 readonly LOS_FILE=${3}
