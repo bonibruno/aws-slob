@@ -18,7 +18,9 @@ if [[ "${USERNAME}" != "root" ]]; then
 else
   SUDO=""
 fi
-
+#
+# Below are the oracle recommended settings, tweak these accordingly for your instance type.
+#
 ${PSSH} -l ${USERNAME} -i -t0 -x "-i ${KEY}" -h ${PSSH_HOST_FILE} "${SUDO} tee -a /etc/sysctl.d/98-oracle.conf >/dev/null <<EOF
 fs.file-max = 6815744
 kernel.sem = 250 32000 100 128
