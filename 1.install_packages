@@ -7,6 +7,7 @@ fi
 
 readonly PSSH_HOST_FILE=${1}
 readonly USERNAME=${2}
+# Default path for pssh is /bin/pssh
 readonly PSSH=path_to_pssh
 readonly KEY=path_to_your_key_pem_file
 
